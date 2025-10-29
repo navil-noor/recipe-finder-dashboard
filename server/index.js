@@ -2,6 +2,8 @@
 
 const express = require('express');
 const authController = require('./controllers/authController');
+const recipeController = require('./controllers/recipeController'); // <-- NEW
+const authenticateToken = require('./middleware/authMiddleware'); // <-- NEW
 
 // Load environment variables from .env file
 require('dotenv').config(); 
@@ -9,21 +11,30 @@ require('dotenv').config();
 const app = express();
 const port = 5000;
 
-// MIDDLEWARE: Required for Express to parse JSON data sent in the request body
+// MIDDLEWARE
 app.use(express.json());
 
 // ------------------------------------
-// AUTHENTICATION ROUTES (The focus of this step)
+// PUBLIC AUTHENTICATION ROUTES
 // ------------------------------------
 app.post('/auth/register', authController.register);
 app.post('/auth/login', authController.login);
 
 
 // ------------------------------------
-// RECIPE ROUTES (Will be built in the next step)
+// PUBLIC RECIPE READ ROUTE
 // ------------------------------------
-// app.get('/recipes', ... ); 
-// app.post('/recipes', ... ); 
+// Anyone can view the list of recipes
+app.get('/recipes', recipeController.getAllRecipes);
+
+
+// ------------------------------------
+// PROTECTED RECIPE ROUTES (Requires Authentication)
+// ------------------------------------
+// Notice the 'authenticateToken' middleware is inserted here!
+app.post('/recipes', authenticateToken, recipeController.createRecipe);
+app.put('/recipes/:id', authenticateToken, recipeController.updateRecipe);
+app.delete('/recipes/:id', authenticateToken, recipeController.deleteRecipe);
 
 
 // ------------------------------------
