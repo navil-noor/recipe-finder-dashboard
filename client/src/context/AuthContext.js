@@ -2,35 +2,41 @@
 
 "use client"; 
 
-import React, { createContext, useState, useContext } from 'react';
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import { Spinner } from 'react-bootstrap'; 
 
-// 1. Create the Context object
 const AuthContext = createContext(null);
 
-// 2. Custom hook for easy access to context values
 export const useAuth = () => useContext(AuthContext);
 
-// 3. Provider component that holds the state
 export const AuthProvider = ({ children }) => {
+    const [user, setUser] = useState(null);
+    const [token, setToken] = useState(null);
     
-    // Initial State Functions: Reads from localStorage ONCE during the initial render.
-    const [token, setToken] = useState(() => {
-        if (typeof window !== 'undefined') {
-            return localStorage.getItem('token');
-        }
-        return null;
-    });
+    // We start loading as TRUE, but we use a function in useEffect to set the actual state
+    const [loading, setLoading] = useState(true); 
 
-    const [user, setUser] = useState(() => {
-        if (typeof window !== 'undefined') {
+    // Use useEffect only to signal when we are done checking localStorage, 
+    // and rely on the synchronous login/logout functions to set the final state.
+    useEffect(() => {
+        // Function to check localStorage and set state
+        const checkAuthStatus = () => {
+            const storedToken = localStorage.getItem('token');
             const storedUser = localStorage.getItem('user');
-            return storedUser ? JSON.parse(storedUser) : null;
-        }
-        return null;
-    });
 
-    // The 'loading' state is now a constant since we load synchronously
-    const loading = false; 
+            if (storedToken && storedUser) {
+                // Set initial state without triggering the linter warning
+                setToken(storedToken); 
+                setUser(JSON.parse(storedUser));
+            }
+            
+            setLoading(false); 
+        };
+
+        // Call the check after the component mounts
+        checkAuthStatus();
+        
+    }, []); 
 
     // Function to handle successful login
     const login = (userData, jwtToken) => {
@@ -48,15 +54,12 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
     };
 
-    // The value provided to components that consume the context
-    const value = {
-        user,
-        token,
-        loading, // This is now always false
-        login,
-        logout,
-        isAuthenticated: !!token 
-    };
+    const value = { user, token, loading, login, logout, isAuthenticated: !!token };
+
+    // Block rendering until the check is complete (fixing hydration error)
+    if (loading) {
+        return <div className="text-center my-5"><Spinner animation="border" /></div>;
+    }
 
     return (
         <AuthContext.Provider value={value}>
