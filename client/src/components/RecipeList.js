@@ -5,27 +5,26 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { Spinner, Alert } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
-import RecipeItem from './RecipeItem';
+import RecipeItem from './RecipeItem'; 
 
 export default function RecipeList() {
     const [recipes, setRecipes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     
-    // We don't strictly need the token here for the GET request 
-    // since it's a public route, but we'll use isAuthenticated for display logic.
     const { isAuthenticated } = useAuth(); 
 
     const fetchRecipes = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
-            // Public GET request to fetch all recipes
+            // Public GET request to fetch all recipes (from server/index.js: app.get('/recipes', ...))
             const response = await axios.get('/api/recipes');
             setRecipes(response.data);
         } catch (err) {
             console.error("Error fetching recipes:", err);
-            setError("Failed to fetch recipes. Check the Express server.");
+            // Show a user-friendly error if the server is down or broken
+            setError("Failed to fetch recipes. Check the Express server console for details.");
         } finally {
             setLoading(false);
         }
@@ -56,7 +55,7 @@ export default function RecipeList() {
                         <RecipeItem 
                             key={recipe.id} 
                             recipe={recipe} 
-                            onRecipeAction={fetchRecipes} 
+                            onRecipeAction={fetchRecipes} // Pass refetch function for CRUD actions
                         />
                     ))
                 )}

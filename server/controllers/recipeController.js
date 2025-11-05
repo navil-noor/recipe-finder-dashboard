@@ -1,104 +1,117 @@
 // server/controllers/recipeController.js
+const db = require('../db'); 
 
-const db = require('../db');
-
-// --- 1. GET: Fetch All Recipes (Public Route) ---
+// 1. Get All Recipes (Public Read)
 exports.getAllRecipes = async (req, res) => {
-  try {
-    // Fetch all recipes and join with users to get the author's username
-    const recipes = await db('recipes')
-      .select('recipes.*', 'users.username as author')
-      .join('users', 'recipes.user_id', 'users.id')
-      .orderBy('recipes.created_at', 'desc');
+    try {
+        const recipes = await db('recipes')
+            // Join with users table to get the author's username
+            .join('users', 'recipes.user_id', '=', 'users.id')
+            .select(
+                'recipes.id',
+                'recipes.title',
+                'recipes.ingredients',
+                'recipes.instructions',
+                'recipes.user_id', // For client-side ownership check
+                'users.username as author' // CRITICAL: Aliased for client component
+            )
+            .orderBy('recipes.id', 'desc');
 
-    res.json(recipes);
-  } catch (error) {
-    console.error('Error fetching recipes:', error);
-    res.status(500).json({ message: 'Failed to retrieve recipes.' });
-  }
+        res.status(200).json(recipes);
+    } catch (error) {
+        console.error('Error fetching recipes:', error);
+        res.status(500).json({ message: 'Failed to fetch recipes.' });
+    }
 };
 
-
-// --- 2. POST: Create New Recipe (Protected Route) ---
+// 2. Create Recipe (Protected Write)
 exports.createRecipe = async (req, res) => {
-  const { title, ingredients, instructions } = req.body;
-  // The user ID comes from the authenticated token!
-  const user_id = req.user.id; 
+    const { title, ingredients, instructions } = req.body;
+    // The user ID is retrieved from the JWT token via middleware
+    const user_id = req.user.id; 
 
-  if (!title || !ingredients || !instructions) {
-    return res.status(400).json({ message: 'All fields are required.' });
-  }
+    if (!title || !ingredients || !instructions) {
+        return res.status(400).json({ message: 'All recipe fields are required.' });
+    }
 
-  try {
-    const [id] = await db('recipes').insert({ 
-      title, 
-      ingredients, 
-      instructions, 
-      user_id 
-    });
-
-    const newRecipe = await db('recipes').where({ id }).first();
-    res.status(201).json(newRecipe);
-  } catch (error) {
-    console.error('Error creating recipe:', error);
-    res.status(500).json({ message: 'Failed to create recipe.' });
-  }
+    try {
+        const [id] = await db('recipes').insert({
+            title,
+            ingredients,
+            instructions,
+            user_id
+        }).returning('id');
+        
+        res.status(201).json({ id, title, message: 'Recipe created successfully.' });
+    } catch (error) {
+        console.error('Recipe creation error:', error);
+        res.status(500).json({ message: 'Failed to create recipe.' });
+    }
 };
 
-
-// --- 3. PUT: Update Recipe (Protected Route - Owner Only) ---
+// 3. Update Recipe (Protected Write - Ownership required)
 exports.updateRecipe = async (req, res) => {
-  const recipeId = req.params.id;
-  const updates = req.body;
-  const user_id = req.user.id; // User ID of the person making the request
+    const { id } = req.params;
+    const { title, ingredients, instructions } = req.body;
+    const user_id = req.user.id; 
+    
+    // Only allow update of specific fields provided in the body
+    const updates = {};
+    if (title) updates.title = title;
+    if (ingredients) updates.ingredients = ingredients;
+    if (instructions) updates.instructions = instructions;
 
-  try {
-    const existingRecipe = await db('recipes').where({ id: recipeId }).first();
-
-    if (!existingRecipe) {
-      return res.status(404).json({ message: 'Recipe not found.' });
+    if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: 'No fields provided for update.' });
     }
 
-    // Authorization Check: Does the user own this recipe?
-    if (existingRecipe.user_id !== user_id) {
-      return res.status(403).json({ message: 'Forbidden: You do not own this recipe.' });
+    try {
+        // Find the recipe and check ownership
+        const recipe = await db('recipes').where({ id }).first();
+
+        if (!recipe) {
+            return res.status(404).json({ message: 'Recipe not found.' });
+        }
+
+        if (recipe.user_id !== user_id) {
+            return res.status(403).json({ message: 'Forbidden: You do not own this recipe.' });
+        }
+
+        // Perform the update
+        await db('recipes').where({ id }).update(updates);
+        
+        res.status(200).json({ message: 'Recipe updated successfully.' });
+
+    } catch (error) {
+        console.error('Recipe update error:', error);
+        res.status(500).json({ message: 'Failed to update recipe.' });
     }
-
-    // Perform the update
-    await db('recipes').where({ id: recipeId }).update(updates);
-    const updatedRecipe = await db('recipes').where({ id: recipeId }).first();
-
-    res.json(updatedRecipe);
-  } catch (error) {
-    console.error(`Error updating recipe ${recipeId}:`, error);
-    res.status(500).json({ message: 'Failed to update recipe.' });
-  }
 };
 
-
-// --- 4. DELETE: Delete Recipe (Protected Route - Owner Only) ---
+// 4. Delete Recipe (Protected Write - Ownership required)
 exports.deleteRecipe = async (req, res) => {
-  const recipeId = req.params.id;
-  const user_id = req.user.id; // User ID of the person making the request
+    const { id } = req.params;
+    const user_id = req.user.id; 
 
-  try {
-    const existingRecipe = await db('recipes').where({ id: recipeId }).first();
+    try {
+        // Find the recipe and check ownership
+        const recipe = await db('recipes').where({ id }).first();
 
-    if (!existingRecipe) {
-      return res.status(404).json({ message: 'Recipe not found.' });
+        if (!recipe) {
+            return res.status(404).json({ message: 'Recipe not found.' });
+        }
+
+        if (recipe.user_id !== user_id) {
+            return res.status(403).json({ message: 'Forbidden: You do not own this recipe.' });
+        }
+
+        // Perform the deletion
+        await db('recipes').where({ id }).del();
+        
+        res.status(204).send(); // 204 No Content for successful deletion
+
+    } catch (error) {
+        console.error('Recipe deletion error:', error);
+        res.status(500).json({ message: 'Failed to delete recipe.' });
     }
-
-    // Authorization Check: Does the user own this recipe?
-    if (existingRecipe.user_id !== user_id) {
-      return res.status(403).json({ message: 'Forbidden: You do not own this recipe.' });
-    }
-
-    // Perform the deletion
-    await db('recipes').where({ id: recipeId }).del();
-    
-    res.status(204).send(); // 204 No Content for successful deletion
-  } catch (error) {
-    console.error(`Error deleting recipe ${recipeId}:`, error);
-    res.status(500).json({ message: 'Failed to delete recipe.' });
-  }
 };

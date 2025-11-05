@@ -8,10 +8,12 @@ import { useAuth } from '../context/AuthContext';
 
 export default function RecipeItem({ recipe, onRecipeAction }) {
     const { user, token, isAuthenticated } = useAuth();
-    const isOwner = isAuthenticated && user && user.id === recipe.user_id;
+    // Check if the currently logged-in user is the owner of this recipe
+    const isOwner = isAuthenticated && user && user.id === recipe.user_id; 
     const [showModal, setShowModal] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
-    const [updatedTitle, setUpdatedTitle] = useState(recipe.title);
+    // Use the title from the recipe prop for initial state
+    const [updatedTitle, setUpdatedTitle] = useState(recipe.title); 
 
     const config = {
         headers: { Authorization: `Bearer ${token}` }
@@ -31,7 +33,7 @@ export default function RecipeItem({ recipe, onRecipeAction }) {
         }
     };
     
-    // --- UPDATE Logic (Simplified to just title for this stage) ---
+    // --- UPDATE Logic (Simplified to just title) ---
     const handleUpdate = async (e) => {
         e.preventDefault();
         if (updatedTitle === recipe.title || !updatedTitle.trim()) {
@@ -40,6 +42,7 @@ export default function RecipeItem({ recipe, onRecipeAction }) {
         }
         
         try {
+            // Send PUT request with the updated title
             await axios.put(`/api/recipes/${recipe.id}`, { title: updatedTitle }, config);
             setIsEditing(false);
             onRecipeAction(); // Refresh the list
@@ -72,8 +75,9 @@ export default function RecipeItem({ recipe, onRecipeAction }) {
                     </Card.Title>
                 )}
                 
+                {/* CRITICAL: Must reference 'recipe.author' property */}
                 <Card.Subtitle className="mb-2 text-muted">
-                    By: {recipe.author}
+                    By: **{recipe.author}**
                 </Card.Subtitle>
 
                 <Button variant="info" size="sm" onClick={() => setShowModal(true)} className="me-2 mt-2">View Details</Button>
@@ -87,7 +91,7 @@ export default function RecipeItem({ recipe, onRecipeAction }) {
                 )}
             </Card.Body>
             
-            {/* Details Modal */}
+            {/* Details Modal (using recipe details) */}
             <Modal show={showModal} onHide={() => setShowModal(false)}>
                 <Modal.Header closeButton>
                     <Modal.Title>{recipe.title} <small className="text-muted fs-6">by {recipe.author}</small></Modal.Title>
