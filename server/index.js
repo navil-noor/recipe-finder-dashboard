@@ -19,6 +19,7 @@ app.use(express.json());
 // ------------------------------------
 app.post('/auth/register', authController.register);
 app.post('/auth/login', authController.login);
+app.delete('/auth/delete', authenticateToken, authController.deleteUser);
 
 
 // ------------------------------------

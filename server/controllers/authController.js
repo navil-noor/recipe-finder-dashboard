@@ -84,3 +84,26 @@ exports.login = async (req, res) => {
     res.status(500).json({ message: 'Server error during login.' });
   }
 };
+
+// 3. User Deletion (Protected Route)
+exports.deleteUser = async (req, res) => {
+  // The user ID comes from the authenticated token (thanks to authMiddleware)
+  const user_id = req.user.id; 
+
+  try {
+    const rowsDeleted = await db('users').where({ id: user_id }).del();
+
+    if (rowsDeleted === 0) {
+      // Should not happen if the token is valid
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // Success: Returns 204 No Content
+    // Due to the ON DELETE CASCADE rule on the recipes table, 
+    // all the user's recipes are automatically deleted by the database.
+    res.status(204).send(); 
+  } catch (error) {
+    console.error('User deletion error:', error);
+    res.status(500).json({ message: 'Failed to delete user.' });
+  }
+};
